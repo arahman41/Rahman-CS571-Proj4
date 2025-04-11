@@ -1,25 +1,39 @@
 package simplf;
- 
+
 import java.util.List;
 
-class SimplfFunction implements SimplfCallable {
+public class SimplfFunction {
+    private final Stmt.Function declaration;
+    private final Environment closure;
 
-    SimplfFunction(Stmt.Function declaration, Environment closure) {
-        throw new UnsupportedOperationException("TODO: implement functions");
+    public SimplfFunction(Stmt.Function declaration, Environment closure) {
+        this.declaration = declaration;
+        this.closure = closure;
     }
 
-    public void setClosure(Environment environment) {
-        throw new UnsupportedOperationException("TODO: implement functions");
+    public Object call(Interpreter interpreter, List<Object> arguments) {
+        Environment env = new Environment(closure);
+        for (int i = 0; i < declaration.parameters.size(); i++) {
+            env.define(declaration.parameters.get(i), arguments.get(i));
+        }
+        try {
+            interpreter.execute(declaration.body, env);
+        } catch (Return returnValue) {
+            return returnValue.value;
+        }
+        return null;
     }
 
-    @Override
-    public Object call(Interpreter interpreter, List<Object> args) {
-        throw new UnsupportedOperationException("TODO: implement functions");
+    public int arity() {
+        return declaration.parameters.size();
     }
+}
 
-    @Override
-    public String toString() {
-        return "<fn >";
+class Return extends RuntimeException {
+    final Object value;
+
+    Return(Object value) {
+        super(null, null, false, false);
+        this.value = value;
     }
-
 }

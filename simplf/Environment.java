@@ -1,54 +1,43 @@
 package simplf;
 
-class Environment {
-    private AssocList assocList;
-    private final Environment enclosing;
+public class Environment {
+    private AssocList bindings;
+    private Environment parent;
 
-    Environment() {
-        this(null);
+    public Environment() {
+        this.bindings = new AssocList();
+        this.parent = null;
     }
 
-    Environment(Environment enclosing) {
-        this.assocList = null;
-        this.enclosing = enclosing;
+    public Environment(Environment parent) {
+        this.bindings = new AssocList();
+        this.parent = parent;
     }
 
-    Environment define(Token varToken, String name, Object value) {
-        AssocList newAssocList = new AssocList(name, value, this.assocList);
-        return new Environment(newAssocList, this.enclosing);
+    public void define(String name, Object value) {
+        bindings.put(name, value);
     }
 
-    void assign(Token name, Object value) {
-        AssocList current = this.assocList;
-        while (current != null) {
-            if (current.name.equals(name.lexeme)) {
-                current.value = value;
-                return;
-            }
-            current = current.next;
+    public Object get(String name) {
+        Object value = bindings.get(name);
+        if (value != null) {
+            return value;
         }
+        if (parent != null) {
+            return parent.get(name);
+        }
+        throw new RuntimeException("Undefined variable: " + name);
+    }
 
-        if (enclosing != null) {
-            enclosing.assign(name, value);
+    public void assign(String name, Object value) {
+        if (bindings.contains(name)) {
+            bindings.put(name, value);
             return;
         }
-
-        throw new RuntimeError(name, "Undefined variable '" + name.lexeme + "'.");
-    }
-
-    Object get(Token name) {
-        AssocList current = this.assocList;
-        while (current != null) {
-            if (current.name.equals(name.lexeme)) {
-                return current.value;
-            }
-            current = current.next;
+        if (parent != null) {
+            parent.assign(name, value);
+            return;
         }
-
-        if (enclosing != null) {
-            return enclosing.get(name);
-        }
-
-        throw new RuntimeError(name, "Undefined variable '" + name.lexeme + "'.");
+        throw new RuntimeException("Undefined variable: " + name);
     }
 }
