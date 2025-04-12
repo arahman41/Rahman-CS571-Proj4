@@ -58,11 +58,28 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     public Object visitBinary(Expr.Binary expr) {
         Object left = evaluate(expr.left);
         Object right = evaluate(expr.right);
+
         switch (expr.op.type) {
+            // Arithmetic
+            case PLUS:
+                if (left instanceof String || right instanceof String) {
+                    return stringify(left) + stringify(right);
+                }
+                return (double)left + (double)right;
+            case MINUS: return (double)left - (double)right;
+            case STAR: return (double)left * (double)right;
+            case SLASH: return (double)left / (double)right;
+
+            // Comparisons
+            case GREATER: return (double)left > (double)right;
+            case GREATER_EQUAL: return (double)left >= (double)right;
+            case LESS: return (double)left < (double)right;
+            case LESS_EQUAL: return (double)left <= (double)right;
             case EQUAL_EQUAL: return left.equals(right);
-            case GREATER:     return (double)left > (double)right;
-            // Add other operators (LESS, etc.)
-            default: throw new RuntimeError(expr.op, "Invalid operator.");
+            case BANG_EQUAL: return !left.equals(right);
+
+            default:
+                throw new RuntimeError(expr.op, "Invalid binary operator.");
         }
     }
 
