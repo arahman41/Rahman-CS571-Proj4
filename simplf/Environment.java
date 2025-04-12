@@ -5,7 +5,7 @@ public class Environment {
     private final Environment parent;
 
     public Environment() {
-        this.bindings = null;  // Initialize as null instead of empty AssocList
+        this.bindings = null;
         this.parent = null;
     }
 
@@ -13,12 +13,17 @@ public class Environment {
         this.bindings = null;
         this.parent = parent;
     }
+
     public void define(String name, Object value) {
-        bindings.put(name, value);
+        if (bindings == null) {
+            bindings = new AssocList(name, value, null);
+        } else {
+            bindings = new AssocList(name, value, bindings);
+        }
     }
 
     public Object get(String name) {
-        Object value = bindings.get(name);
+        Object value = (bindings != null) ? bindings.get(name) : null;
         if (value != null) {
             return value;
         }
@@ -29,7 +34,7 @@ public class Environment {
     }
 
     public void assign(String name, Object value) {
-        if (bindings.contains(name)) {
+        if (bindings != null && bindings.contains(name)) {
             bindings.put(name, value);
             return;
         }

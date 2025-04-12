@@ -19,41 +19,31 @@ public class Desugar {
         return stmt;
     }
 
-    private Stmt desugarForStmt(Stmt.For forStmt) {
-        // Convert all parts to proper statements
-        Object init = forStmt.init != null ? forStmt.init : createEmptyStatement();
-        Expr cond = forStmt.cond != null ? forStmt.cond : new Expr.Literal(true);
-        Object incr = forStmt.incr != null ? forStmt.incr : createEmptyStatement();
+    private Stmt desugarForStmt(Stmt.For stmt) {
+        Object init = stmt.init != null ? stmt.init : new Stmt.Expression(new Expr.Literal(null));
+        Expr cond = stmt.cond != null ? stmt.cond : new Expr.Literal(true);
+        Object incr = stmt.incr != null ? stmt.incr : new Stmt.Expression(new Expr.Literal(null));
 
-        // Build the while loop body
-        List<Stmt> whileBodyStmts = new ArrayList<>();
-        whileBodyStmts.add(forStmt.body);
-
-        if (!isEmptyStatement((Stmt) incr)) {
-            whileBodyStmts.add((Stmt) incr);
+        List<Stmt> bodyStatements = new ArrayList<>();
+        bodyStatements.add(stmt.body);
+        if (!isNullStatement((Stmt) incr)) {
+            bodyStatements.add((Stmt) incr);
         }
 
-        Stmt whileStmt = new Stmt.While(cond, new Stmt.Block(whileBodyStmts));
+        Stmt whileStmt = new Stmt.While(cond, new Stmt.Block(bodyStatements));
 
-        // Build the final block
-        List<Stmt> blockStmts = new ArrayList<>();
-        if (!isEmptyStatement((Stmt) init)) {
-            blockStmts.add((Stmt) init);
+        List<Stmt> blockStatements = new ArrayList<>();
+        if (!isNullStatement((Stmt) init)) {
+            blockStatements.add((Stmt) init);
         }
-        blockStmts.add(whileStmt);
+        blockStatements.add(whileStmt);
 
-        return new Stmt.Block(blockStmts);
+        return new Stmt.Block(blockStatements);
     }
 
-    private Stmt createEmptyStatement() {
-        return new Stmt.Expression(new Expr.Literal(null));
-    }
-
-    private boolean isEmptyStatement(Stmt stmt) {
-        if (!(stmt instanceof Stmt.Expression)) {
-            return false;
-        }
-        Expr expr = ((Stmt.Expression) stmt).expr;
-        return expr instanceof Expr.Literal && ((Expr.Literal) expr).val == null;
+    private boolean isNullStatement(Stmt stmt) {
+        return (stmt instanceof Stmt.Expression) &&
+                (((Stmt.Expression) stmt).expr instanceof Expr.Literal) &&
+                (((Expr.Literal) ((Stmt.Expression) stmt).expr).val == null);
     }
 }

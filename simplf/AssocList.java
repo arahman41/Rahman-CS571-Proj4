@@ -1,15 +1,16 @@
 package simplf;
 
 public class AssocList {
-        final String name;
-        Object value;
-        final AssocList next;
+    final String name;
+    Object value;
+    final AssocList next;
 
-        AssocList(String nameIn, Object valueIn, AssocList nextIn) {
-            name = nameIn;
-            value = valueIn;
-            next = nextIn;
-        }
+    AssocList(String nameIn, Object valueIn, AssocList nextIn) {
+        name = nameIn;
+        value = valueIn;
+        next = nextIn;
+    }
+
     public Object get(String name) {
         if (name.equals(this.name)) return value;
         if (next == null) return null;
@@ -33,4 +34,3 @@ public class AssocList {
         return next.contains(name);
     }
 }
-
