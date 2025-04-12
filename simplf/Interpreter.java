@@ -84,21 +84,6 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     @Override
-    public Object visitUnary(Expr.Unary expr) {
-        return null;
-    }
-
-    @Override
-    public Object visitLiteral(Expr.Literal expr) {
-        return null;
-    }
-
-    @Override
-    public Object visitGrouping(Expr.Grouping expr) {
-        return null;
-    }
-
-    @Override
     public Object visitVarExpr(Expr.Variable expr) {
         return visitVariableExpr(expr); // Delegate to working method
     }
@@ -110,10 +95,6 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return value;
     }
 
-    @Override
-    public Object visitLogicalExpr(Expr.Logical expr) {
-        return null;
-    }
 
     @Override
     public Object visitConditionalExpr(Expr.Conditional expr) {
@@ -210,4 +191,51 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         }
         return object.toString();
     }
+
+    @Override
+    public Object visitUnary(Expr.Unary expr) {
+        Object right = evaluate(expr.right);
+        switch (expr.op.type) {
+            case MINUS:
+                checkNumberOperand(expr.op, right);
+                return -(double)right;
+            case BANG:
+                return !isTruthy(right);
+            default:
+                throw new RuntimeError(expr.op, "Invalid unary operator.");
+        }
+    }
+
+    @Override
+    public Object visitLiteral(Expr.Literal expr) {
+        return expr.val;  // Return the literal value directly
+    }
+
+    @Override
+    public Object visitGrouping(Expr.Grouping expr) {
+        return evaluate(expr.expression);  // Evaluate the inner expression
+    }
+
+    @Override
+    public Object visitLogicalExpr(Expr.Logical expr) {
+        Object left = evaluate(expr.left);
+        if (expr.op.type == TokenType.OR) {
+            if (isTruthy(left)) return left;
+        } else {
+            if (!isTruthy(left)) return left;
+        }
+        return evaluate(expr.right);
+    }
+
+    // Add type checking helper
+    private void checkNumberOperand(Token op, Object operand) {
+        if (operand instanceof Double) return;
+        throw new RuntimeError(op, "Operand must be a number.");
+    }
+
+    private void checkNumberOperands(Token op, Object left, Object right) {
+        if (left instanceof Double && right instanceof Double) return;
+        throw new RuntimeError(op, "Operands must be numbers.");
+    }
+
 }
