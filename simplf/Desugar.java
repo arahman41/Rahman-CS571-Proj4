@@ -1,34 +1,59 @@
 package simplf;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class Desugar {
     public List<Stmt> desugar(List<Stmt> statements) {
-        // Implement desugaring for all statements (e.g., For → While)
-        return statements.stream()
-                .map(this::desugarStmt)
-                .toList();
+        List<Stmt> desugared = new ArrayList<>();
+        for (Stmt stmt : statements) {
+            desugared.add(desugarStmt(stmt));
+        }
+        return desugared;
     }
 
     private Stmt desugarStmt(Stmt stmt) {
         if (stmt instanceof Stmt.For) {
-            return visitForStmt((Stmt.For) stmt);
+            return desugarForStmt((Stmt.For) stmt);
         }
-        return stmt; // No desugaring needed
+        return stmt;
     }
 
-    public Stmt visitForStmt(Stmt.For stmt) {
-        // Convert Expr to Stmt.Expression for init/incr
-        Stmt init = stmt.init != null ? new Stmt.Expression(stmt.init) : new Stmt.Expression(null);
-        Expr cond = stmt.cond != null ? stmt.cond : new Expr.Literal(true);
-        Stmt incr = stmt.incr != null ? new Stmt.Expression(stmt.incr) : null;
+    private Stmt desugarForStmt(Stmt.For forStmt) {
+        // Convert all parts to proper statements
+        Object init = forStmt.init != null ? forStmt.init : createEmptyStatement();
+        Expr cond = forStmt.cond != null ? forStmt.cond : new Expr.Literal(true);
+        Object incr = forStmt.incr != null ? forStmt.incr : createEmptyStatement();
 
-        // Build while loop
-        Stmt whileBody = stmt.body;
-        if (incr != null) {
-            whileBody = new Stmt.Block(List.of(stmt.body, incr));
+        // Build the while loop body
+        List<Stmt> whileBodyStmts = new ArrayList<>();
+        whileBodyStmts.add(forStmt.body);
+
+        if (!isEmptyStatement((Stmt) incr)) {
+            whileBodyStmts.add((Stmt) incr);
         }
-        Stmt whileStmt = new Stmt.While(cond, whileBody);
-        return new Stmt.Block(List.of(init, whileStmt));
+
+        Stmt whileStmt = new Stmt.While(cond, new Stmt.Block(whileBodyStmts));
+
+        // Build the final block
+        List<Stmt> blockStmts = new ArrayList<>();
+        if (!isEmptyStatement((Stmt) init)) {
+            blockStmts.add((Stmt) init);
+        }
+        blockStmts.add(whileStmt);
+
+        return new Stmt.Block(blockStmts);
+    }
+
+    private Stmt createEmptyStatement() {
+        return new Stmt.Expression(new Expr.Literal(null));
+    }
+
+    private boolean isEmptyStatement(Stmt stmt) {
+        if (!(stmt instanceof Stmt.Expression)) {
+            return false;
+        }
+        Expr expr = ((Stmt.Expression) stmt).expr;
+        return expr instanceof Expr.Literal && ((Expr.Literal) expr).val == null;
     }
 }

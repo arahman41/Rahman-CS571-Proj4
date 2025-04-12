@@ -2,18 +2,17 @@ package simplf;
 
 public class Environment {
     private AssocList bindings;
-    private Environment parent;
+    private final Environment parent;
 
     public Environment() {
-        this.bindings = new AssocList();
+        this.bindings = null;  // Initialize as null instead of empty AssocList
         this.parent = null;
     }
 
     public Environment(Environment parent) {
-        this.bindings = new AssocList();
+        this.bindings = null;
         this.parent = parent;
     }
-
     public void define(String name, Object value) {
         bindings.put(name, value);
     }
