@@ -13,11 +13,16 @@ class SimplfFunction implements SimplfCallable {
 
     @Override
     public Object call(Interpreter interpreter, List<Object> arguments) {
-        Environment environment = new Environment(closure);
+        if (arguments.size() != arity()) {
+            throw new RuntimeError(
+                    declaration.name,
+                    "Expected " + arity() + " arguments but got " + arguments.size() + "."
+            );
+        }
 
+        Environment environment = new Environment(closure);
         for (int i = 0; i < declaration.params.size(); i++) {
-            Token param = declaration.params.get(i);
-            environment = environment.define(param, param.lexeme, arguments.get(i));
+            environment.define(declaration.params.get(i).lexeme, arguments.get(i));
         }
 
         try {
@@ -25,7 +30,6 @@ class SimplfFunction implements SimplfCallable {
         } catch (Return returnValue) {
             return returnValue.value;
         }
-
         return null;
     }
 
@@ -36,6 +40,6 @@ class SimplfFunction implements SimplfCallable {
 
     @Override
     public String toString() {
-        return "<fn " + declaration.name.lexeme + ">";
+        return "<fn " + declaration.name.lexeme + "/" + arity() + ">";
     }
 }

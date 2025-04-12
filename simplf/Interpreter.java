@@ -81,6 +81,8 @@ public class Interpreter {
             visitWhileStmt((Stmt.While) stmt, env);
         } else if (stmt instanceof Stmt.Function) {
             visitFunctionStmt((Stmt.Function) stmt, env);
+        }else if (stmt instanceof Stmt.Expression) {
+            evaluate(((Stmt.Expression) stmt).expression, env);
         }
     }
 
@@ -103,5 +105,10 @@ public class Interpreter {
         if (value == null) return false;
         if (value instanceof Boolean) return (Boolean) value;
         return true;
+    }
+
+    public Void visitExprStmt(Stmt.Expression stmt) {
+        evaluate(stmt.expr, env);
+        return null;
     }
 }
