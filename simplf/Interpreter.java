@@ -26,12 +26,6 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return null;
     }
 
-    @Override
-    public Void visitPrintStmt(Stmt.Print stmt) {
-        Object value = evaluate(stmt.expr);
-        System.out.println(stringify(value));
-        return null;
-    }
 
     @Override
     public Void visitExprStmt(Stmt.Expression stmt) {
@@ -81,6 +75,12 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
             default:
                 throw new RuntimeError(expr.op, "Invalid binary operator.");
         }
+    }
+
+    private boolean isEqual(Object a, Object b) {
+        if (a == null && b == null) return true;
+        if (a == null) return false;
+        return a.equals(b);
     }
 
     @Override
@@ -177,12 +177,24 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     private boolean isTruthy(Object object) {
         if (object == null) return false;
         if (object instanceof Boolean) return (boolean) object;
+        if (object instanceof Double) {
+            double val = (double) object;
+            return !Double.isNaN(val) && val != 0.0;
+        }
         return true;
+    }
+
+    @Override
+    public Void visitPrintStmt(Stmt.Print stmt) {
+        Object value = evaluate(stmt.expr);
+        System.out.println(stringify(value));
+        return null;
     }
 
     private String stringify(Object object) {
         if (object == null) return "nil";
         if (object instanceof Double) {
+            // Remove .0 for integer values
             String text = object.toString();
             if (text.endsWith(".0")) {
                 text = text.substring(0, text.length() - 2);
