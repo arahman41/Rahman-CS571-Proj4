@@ -1,45 +1,99 @@
 package simplf;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.List;
 
-class SimplfFunction implements SimplfCallable {
-    private final Stmt.Function declaration;
-    private final Environment closure;
+import org.antlr.v4.runtime.CharStream;
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
 
-    SimplfFunction(Stmt.Function declaration, Environment closure) {
-        this.declaration = declaration;
-        this.closure = closure;
+import simplf.parser.simplfLexer;
+import simplf.parser.simplfParser;
+
+public class Simplf {
+    static boolean hadError = false;
+    static boolean hadRuntimeError = false;
+    private static final Interpreter interpreter = new Interpreter();
+
+    public static void main(String args[]) throws IOException {
+        if (args.length > 1) {
+            System.exit(64);
+        } else if (args.length == 1) {
+            runFile(args[0]);
+        } else {
+            runPrompt();
+        }
     }
 
-    @Override
-    public Object call(Interpreter interpreter, List<Object> arguments) {
-        if (arguments.size() != arity()) {
-            throw new RuntimeError(
-                    declaration.name,
-                    "Expected " + arity() + " arguments but got " + arguments.size() + "."
-            );
-        }
-
-        Environment environment = new Environment(closure);
-        for (int i = 0; i < declaration.params.size(); i++) {
-            environment.define(declaration.params.get(i).lexeme, arguments.get(i));
-        }
-
-        try {
-            interpreter.executeBlock(declaration.body, environment);
-        } catch (Return returnValue) {
-            return returnValue.value;
-        }
-        return null;
+    private static void runFile(String path) throws IOException {
+        byte[] bytes = Files.readAllBytes(Paths.get(path));
+        run(new String(bytes, Charset.defaultCharset()));
+        if (hadError)
+            System.exit(65);
+        if (hadRuntimeError)
+            System.exit(70);
     }
 
-    @Override
-    public int arity() {
-        return declaration.params.size();
+    private static void runPrompt() throws IOException {
+        InputStreamReader input = new InputStreamReader(System.in);
+        BufferedReader br = new BufferedReader(input);
+
+        for (;;) {
+            System.out.print("> ");
+            String line = br.readLine();
+            if (line == null)
+                break;
+            run(line);
+            hadError = false;
+            hadRuntimeError = false;
+        }
     }
 
-    @Override
-    public String toString() {
-        return "<fn " + declaration.name.lexeme + "/" + arity() + ">";
+
+    private static void run(String source) {
+        CharStream input = CharStreams.fromString(source);
+        simplfLexer lex = new simplf.parser.simplfLexer(input);
+        CommonTokenStream tokens = new CommonTokenStream(lex);
+        simplfParser parser = new simplfParser(tokens);
+
+        List<Stmt> statements = parser.program().val;
+
+        //System.out.println("Original program:");
+        //print_program(statements);
+
+        List<Stmt> desugared_statements =
+                (new Desugar()).desugar(statements);
+
+        //System.out.println("Desugared program:");
+        //print_program(desugared_statements);
+
+        interpreter.interpret(desugared_statements);
+    }
+
+    static void error(int line, int col, String message) {
+        report(line, col, "", message);
+    }
+
+    private static void report(int line, int col, String where, String message) {
+        System.err.println("[line " + line + ", col " + col + "] Error" + where + ":" + message);
+        hadError = true;
+    }
+
+    static void error(Token token, String message) {
+        if (token.type == TokenType.EOF) {
+            report(token.line, token.col, " at end", message);
+        } else {
+            report(token.line, token.col, " at '" + token.lexeme + "'", message);
+        }
+    }
+
+    public static void runtimeError(RuntimeError error) {
+        System.err.println(error.getMessage() + ": [line " + error.token.line + " col " + error.token.col + "]");
+        hadRuntimeError = true;
     }
 }
