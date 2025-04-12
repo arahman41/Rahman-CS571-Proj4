@@ -56,7 +56,14 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     @Override
     public Object visitBinary(Expr.Binary expr) {
-        return null;
+        Object left = evaluate(expr.left);
+        Object right = evaluate(expr.right);
+        switch (expr.op.type) {
+            case EQUAL_EQUAL: return left.equals(right);
+            case GREATER:     return (double)left > (double)right;
+            // Add other operators (LESS, etc.)
+            default: throw new RuntimeError(expr.op, "Invalid operator.");
+        }
     }
 
     @Override
