@@ -26,6 +26,12 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return null;
     }
 
+    @Override
+    public Void visitPrintStmt(Stmt.Print stmt) {
+        Object value = evaluate(stmt.expr);
+        System.out.println(stringify(value));
+        return null;
+    }
 
     @Override
     public Void visitExprStmt(Stmt.Expression stmt) {
@@ -47,7 +53,6 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return environment.get(expr.name);
     }
 
-
     @Override
     public Object visitBinary(Expr.Binary expr) {
         Object left = evaluate(expr.left);
@@ -59,33 +64,66 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
                 if (left instanceof String || right instanceof String) {
                     return stringify(left) + stringify(right);
                 }
+                checkNumberOperands(expr.op, left, right);
                 return (double)left + (double)right;
-            case MINUS: return (double)left - (double)right;
-            case STAR: return (double)left * (double)right;
-            case SLASH: return (double)left / (double)right;
+            case MINUS:
+                checkNumberOperands(expr.op, left, right);
+                return (double)left - (double)right;
+            case STAR:
+                checkNumberOperands(expr.op, left, right);
+                return (double)left * (double)right;
+            case SLASH:
+                checkNumberOperands(expr.op, left, right);
+                return (double)left / (double)right;
 
             // Comparisons
-            case GREATER: return (double)left > (double)right;
-            case GREATER_EQUAL: return (double)left >= (double)right;
-            case LESS: return (double)left < (double)right;
-            case LESS_EQUAL: return (double)left <= (double)right;
-            case EQUAL_EQUAL: return left.equals(right);
-            case BANG_EQUAL: return !left.equals(right);
+            case GREATER:
+                checkNumberOperands(expr.op, left, right);
+                return (double)left > (double)right;
+            case GREATER_EQUAL:
+                checkNumberOperands(expr.op, left, right);
+                return (double)left >= (double)right;
+            case LESS:
+                checkNumberOperands(expr.op, left, right);
+                return (double)left < (double)right;
+            case LESS_EQUAL:
+                checkNumberOperands(expr.op, left, right);
+                return (double)left <= (double)right;
+            case EQUAL_EQUAL: return isEqual(left, right);
+            case BANG_EQUAL: return !isEqual(left, right);
 
             default:
                 throw new RuntimeError(expr.op, "Invalid binary operator.");
         }
     }
 
-    private boolean isEqual(Object a, Object b) {
-        if (a == null && b == null) return true;
-        if (a == null) return false;
-        return a.equals(b);
+    @Override
+    public Object visitUnary(Expr.Unary expr) {
+        Object right = evaluate(expr.right);
+        switch (expr.op.type) {
+            case MINUS:
+                checkNumberOperand(expr.op, right);
+                return -(double)right;
+            case BANG:
+                return !isTruthy(right);
+            default:
+                throw new RuntimeError(expr.op, "Invalid unary operator.");
+        }
+    }
+
+    @Override
+    public Object visitLiteral(Expr.Literal expr) {
+        return expr.val;
+    }
+
+    @Override
+    public Object visitGrouping(Expr.Grouping expr) {
+        return evaluate(expr.expression);
     }
 
     @Override
     public Object visitVarExpr(Expr.Variable expr) {
-        return visitVariableExpr(expr); // Delegate to working method
+        return null;
     }
 
     @Override
@@ -95,6 +133,16 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return value;
     }
 
+    @Override
+    public Object visitLogicalExpr(Expr.Logical expr) {
+        Object left = evaluate(expr.left);
+        if (expr.op.type == TokenType.OR) {
+            if (isTruthy(left)) return left;
+        } else {
+            if (!isTruthy(left)) return left;
+        }
+        return evaluate(expr.right);
+    }
 
     @Override
     public Object visitConditionalExpr(Expr.Conditional expr) {
@@ -184,17 +232,15 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return true;
     }
 
-    @Override
-    public Void visitPrintStmt(Stmt.Print stmt) {
-        Object value = evaluate(stmt.expr);
-        System.out.println(stringify(value));
-        return null;
+    private boolean isEqual(Object a, Object b) {
+        if (a == null && b == null) return true;
+        if (a == null) return false;
+        return a.equals(b);
     }
 
     private String stringify(Object object) {
         if (object == null) return "nil";
         if (object instanceof Double) {
-            // Remove .0 for integer values
             String text = object.toString();
             if (text.endsWith(".0")) {
                 text = text.substring(0, text.length() - 2);
@@ -204,42 +250,6 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return object.toString();
     }
 
-    @Override
-    public Object visitUnary(Expr.Unary expr) {
-        Object right = evaluate(expr.right);
-        switch (expr.op.type) {
-            case MINUS:
-                checkNumberOperand(expr.op, right);
-                return -(double)right;
-            case BANG:
-                return !isTruthy(right);
-            default:
-                throw new RuntimeError(expr.op, "Invalid unary operator.");
-        }
-    }
-
-    @Override
-    public Object visitLiteral(Expr.Literal expr) {
-        return expr.val;  // Return the literal value directly
-    }
-
-    @Override
-    public Object visitGrouping(Expr.Grouping expr) {
-        return evaluate(expr.expression);  // Evaluate the inner expression
-    }
-
-    @Override
-    public Object visitLogicalExpr(Expr.Logical expr) {
-        Object left = evaluate(expr.left);
-        if (expr.op.type == TokenType.OR) {
-            if (isTruthy(left)) return left;
-        } else {
-            if (!isTruthy(left)) return left;
-        }
-        return evaluate(expr.right);
-    }
-
-    // Add type checking helper
     private void checkNumberOperand(Token op, Object operand) {
         if (operand instanceof Double) return;
         throw new RuntimeError(op, "Operand must be a number.");
@@ -249,5 +259,4 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         if (left instanceof Double && right instanceof Double) return;
         throw new RuntimeError(op, "Operands must be numbers.");
     }
-
 }
