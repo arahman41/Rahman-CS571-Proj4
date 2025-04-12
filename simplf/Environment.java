@@ -30,7 +30,7 @@ public class Environment {
         if (parent != null) {
             return parent.get(name);
         }
-        throw new RuntimeException("Undefined variable: " + name);
+        throw new RuntimeError(null, "Undefined variable '" + name + "'");
     }
 
     public void assign(String name, Object value) {
@@ -42,6 +42,6 @@ public class Environment {
             parent.assign(name, value);
             return;
         }
-        throw new RuntimeException("Undefined variable: " + name);
+        throw new RuntimeError(null, "Undefined variable '" + name + "'");
     }
 }
