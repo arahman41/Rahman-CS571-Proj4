@@ -19,62 +19,22 @@ public class Desugar {
         return stmt;
     }
 
-    private Stmt desugarForStmt(Stmt.For forStmt) {
-        // Convert initialization to statement (wrap in Expression if needed)
-        Stmt init = forStmt.init != null ?
-                asStatement(forStmt.init) :
-                createEmptyStatement();
+    private Stmt desugarForStmt(Stmt.For stmt) {
+        Object init = stmt.init != null ? stmt.init : new Stmt.Expression(null);
+        Expr cond = stmt.cond != null ? stmt.cond : new Expr.Literal(true);
+        Stmt update = stmt.incr != null ? new Stmt.Expression(stmt.incr) : new Stmt.Expression(null);
 
-        // Handle condition (default to true if not specified)
-        Expr cond = forStmt.cond != null ?
-                forStmt.cond :
-                new Expr.Literal(true);
-
-        // Convert increment to statement (wrap in Expression if needed)
-        Stmt incr = forStmt.incr != null ?
-                asStatement(forStmt.incr) :
-                createEmptyStatement();
-
-        // Build the while loop body
         List<Stmt> bodyStatements = new ArrayList<>();
-        bodyStatements.add(forStmt.body);
+        bodyStatements.add(stmt.body);
+        bodyStatements.add(update);
 
-        if (!isEmptyStatement(incr)) {
-            bodyStatements.add(incr);
-        }
+        Stmt whileBody = new Stmt.Block(bodyStatements);
+        Stmt whileStmt = new Stmt.While(cond, whileBody);
 
-        Stmt whileStmt = new Stmt.While(cond, new Stmt.Block(bodyStatements));
-
-        // Combine initialization and while loop
         List<Stmt> blockStatements = new ArrayList<>();
-        if (!isEmptyStatement(init)) {
-            blockStatements.add(init);
-        }
+        blockStatements.add((Stmt) init);
         blockStatements.add(whileStmt);
 
         return new Stmt.Block(blockStatements);
-    }
-
-    // Helper to convert Expr to Stmt.Expression
-    private Stmt asStatement(Stmt stmt) {
-        // If it's already a statement, return it directly
-        return stmt;
-    }
-
-    private Stmt asStatement(Expr expr) {
-        // Wrap expression in Stmt.Expression
-        return new Stmt.Expression(expr);
-    }
-
-    private Stmt createEmptyStatement() {
-        return new Stmt.Expression(new Expr.Literal(null));
-    }
-
-    private boolean isEmptyStatement(Stmt stmt) {
-        if (!(stmt instanceof Stmt.Expression)) {
-            return false;
-        }
-        Expr expr = ((Stmt.Expression) stmt).expr;
-        return expr instanceof Expr.Literal && ((Expr.Literal) expr).val == null;
     }
 }

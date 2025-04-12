@@ -6,6 +6,10 @@ public abstract class Expr {
     abstract <T> T accept(Visitor<T> vis);
 
     interface Visitor<T> {
+        Void visitExpressionStmt(Stmt.Expression stmt);
+
+        Object visitVariableExpr(Variable expr);
+
         T visitBinary(Binary expr);
 
         T visitUnary(Unary expr);

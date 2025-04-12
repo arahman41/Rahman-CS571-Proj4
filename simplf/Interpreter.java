@@ -2,102 +2,171 @@ package simplf;
 
 import java.util.List;
 
-public class Interpreter {
-    private Environment globalEnv = new Environment();
+public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
+    final Environment globals = new Environment();
+    private Environment environment = globals;
 
-    public Object evaluate(Expr expr, Environment env) {
-        if (expr instanceof Expr.Literal) {
-            return ((Expr.Literal) expr).val;
-        } else if (expr instanceof Expr.Variable) {
-            return visitVarExpr((Expr.Variable) expr, env);
-        } else if (expr instanceof Expr.Assign) {
-            return visitAssignExpr((Expr.Assign) expr, env);
-        } else if (expr instanceof Expr.Binary) {
-            return visitBinaryExpr((Expr.Binary) expr, env);
-        } else if (expr instanceof Expr.Unary) {
-            return visitUnaryExpr((Expr.Unary) expr, env);
-        } else if (expr instanceof Expr.Grouping) {
-            return evaluate(((Expr.Grouping) expr).expression, env);
-        }
-        throw new RuntimeError(null, "Unknown expression type");
-    }
-
-    private Object visitBinaryExpr(Expr.Binary expr, Environment env) {
-        Object left = evaluate(expr.left, env);
-        Object right = evaluate(expr.right, env);
-
-        switch (expr.op.type) {
-            case PLUS:
-                if (left instanceof Double && right instanceof Double) {
-                    return (double) left + (double) right;
-                }
-                if (left instanceof String || right instanceof String) {
-                    return stringify(left) + stringify(right);
-                }
-                throw new RuntimeError(expr.op, "Operands must be numbers or strings");
-            case MINUS: return (double) left - (double) right;
-            case STAR: return (double) left * (double) right;
-            case SLASH:
-                if ((double) right == 0) throw new RuntimeError(expr.op, "Division by zero");
-                return (double) left / (double) right;
-            default:
-                throw new RuntimeError(expr.op, "Unknown binary operator");
+    public void interpret(List<Stmt> statements) {
+        try {
+            for (Stmt statement : statements) {
+                execute(statement);
+            }
+        } catch (RuntimeError error) {
+            Simplf.runtimeError(error);
         }
     }
 
-    private Object visitUnaryExpr(Expr.Unary expr, Environment env) {
-        Object right = evaluate(expr.right, env);
-        switch (expr.op.type) {
-            case MINUS: return -(double) right;
-            case BANG: return !isTruthy(right);
-            default:
-                throw new RuntimeError(expr.op, "Unknown unary operator");
-        }
+    private void execute(Stmt stmt) {
+        stmt.accept(this);
     }
 
-    public Object visitVarExpr(Expr.Variable expr, Environment env) {
-        return env.get(expr.name.lexeme);
-    }
-
-    public Void visitVarStmt(Stmt.Var stmt, Environment env) {
-        Object value = null;
-        if (stmt.initializer != null) {
-            value = evaluate(stmt.initializer, env);
-        }
-        env.define(stmt.name.lexeme, value);
+    @Override
+    public Void visitExpressionStmt(Stmt.Expression stmt) {
+        evaluate(stmt.expr);
         return null;
     }
 
-    public Object visitAssignExpr(Expr.Assign expr, Environment env) {
-        Object value = evaluate(expr.value, env);
-        env.assign(expr.name.lexeme, value);
-        return value;
-    }
-
-    public Void visitPrintStmt(Stmt.Print stmt, Environment env) {
-        Object value = evaluate(stmt.expr, env);
+    @Override
+    public Void visitPrintStmt(Stmt.Print stmt) {
+        Object value = evaluate(stmt.expr);
         System.out.println(stringify(value));
         return null;
     }
 
-    public Void visitBlockStmt(Stmt.Block stmt, Environment env) {
-        Environment blockEnv = new Environment(env);
-        for (Stmt statement : stmt.statements) {
-            execute(statement, blockEnv);
+    @Override
+    public Void visitExprStmt(Stmt.Expression stmt) {
+        return null;
+    }
+
+    @Override
+    public Void visitVarStmt(Stmt.Var stmt) {
+        Object value = null;
+        if (stmt.initializer != null) {
+            value = evaluate(stmt.initializer);
+        }
+        environment.define(stmt.name.lexeme, value);
+        return null;
+    }
+
+    @Override
+    public Object visitVariableExpr(Expr.Variable expr) {
+        return environment.get(expr.name);
+    }
+
+
+    @Override
+    public Object visitBinary(Expr.Binary expr) {
+        return null;
+    }
+
+    @Override
+    public Object visitUnary(Expr.Unary expr) {
+        return null;
+    }
+
+    @Override
+    public Object visitLiteral(Expr.Literal expr) {
+        return null;
+    }
+
+    @Override
+    public Object visitGrouping(Expr.Grouping expr) {
+        return null;
+    }
+
+    @Override
+    public Object visitVarExpr(Expr.Variable expr) {
+        return visitVariableExpr(expr); // Delegate to working method
+    }
+
+    @Override
+    public Object visitAssignExpr(Expr.Assign expr) {
+        Object value = evaluate(expr.value);
+        environment.assign(expr.name, value);
+        return value;
+    }
+
+    @Override
+    public Object visitLogicalExpr(Expr.Logical expr) {
+        return null;
+    }
+
+    @Override
+    public Object visitConditionalExpr(Expr.Conditional expr) {
+        return null;
+    }
+
+    @Override
+    public Void visitBlockStmt(Stmt.Block stmt) {
+        executeBlock(stmt.statements, new Environment(environment));
+        return null;
+    }
+
+    public void executeBlock(List<Stmt> statements, Environment environment) {
+        Environment previous = this.environment;
+        try {
+            this.environment = environment;
+            for (Stmt statement : statements) {
+                execute(statement);
+            }
+        } finally {
+            this.environment = previous;
+        }
+    }
+
+    @Override
+    public Void visitIfStmt(Stmt.If stmt) {
+        if (isTruthy(evaluate(stmt.cond))) {
+            execute(stmt.thenBranch);
+        } else if (stmt.elseBranch != null) {
+            execute(stmt.elseBranch);
         }
         return null;
     }
 
-    private void execute(Stmt stmt, Environment env) {
-        if (stmt instanceof Stmt.Print) {
-            visitPrintStmt((Stmt.Print) stmt, env);
-        } else if (stmt instanceof Stmt.Var) {
-            visitVarStmt((Stmt.Var) stmt, env);
-        } else if (stmt instanceof Stmt.Block) {
-            visitBlockStmt((Stmt.Block) stmt, env);
-        } else if (stmt instanceof Stmt.Expression) {
-            evaluate(((Stmt.Expression) stmt).expr, env);
+    @Override
+    public Void visitWhileStmt(Stmt.While stmt) {
+        while (isTruthy(evaluate(stmt.cond))) {
+            execute(stmt.body);
         }
+        return null;
+    }
+
+    @Override
+    public Void visitForStmt(Stmt.For stmt) {
+        return null;
+    }
+
+    @Override
+    public Void visitFunctionStmt(Stmt.Function stmt) {
+        SimplfFunction function = new SimplfFunction(stmt, environment);
+        environment.define(stmt.name.lexeme, function);
+        return null;
+    }
+
+    @Override
+    public Object visitCallExpr(Expr.Call expr) {
+        Object callee = evaluate(expr.callee);
+        List<Object> arguments = new java.util.ArrayList<>();
+        for (Expr argument : expr.args) {
+            arguments.add(evaluate(argument));
+        }
+
+        if (!(callee instanceof SimplfCallable)) {
+            throw new RuntimeError(expr.paren, "Can only call functions and classes.");
+        }
+
+        SimplfCallable function = (SimplfCallable) callee;
+        if (arguments.size() != function.arity()) {
+            throw new RuntimeError(expr.paren, "Expected " +
+                    function.arity() + " arguments but got " +
+                    arguments.size() + ".");
+        }
+        return function.call(this, arguments);
+    }
+
+    private Object evaluate(Expr expr) {
+        return expr.accept(this);
     }
 
     private boolean isTruthy(Object object) {
@@ -116,15 +185,5 @@ public class Interpreter {
             return text;
         }
         return object.toString();
-    }
-
-    public void interpret(List<Stmt> statements) {
-        try {
-            for (Stmt statement : statements) {
-                execute(statement, globalEnv);
-            }
-        } catch (RuntimeError error) {
-            Simplf.runtimeError(error);
-        }
     }
 }

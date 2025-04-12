@@ -1,47 +1,41 @@
 package simplf;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class Environment {
-    private AssocList bindings;
-    private final Environment parent;
+    final Map<String, Object> values = new HashMap<>();
+    final Environment enclosing;
 
     public Environment() {
-        this.bindings = null;
-        this.parent = null;
+        this.enclosing = null;
     }
 
-    public Environment(Environment parent) {
-        this.bindings = null;
-        this.parent = parent;
+    public Environment(Environment enclosing) {
+        this.enclosing = enclosing;
     }
 
     public void define(String name, Object value) {
-        if (bindings == null) {
-            bindings = new AssocList(name, value, null);
-        } else {
-            bindings = new AssocList(name, value, bindings);
-        }
+        values.put(name, value);
     }
 
-    public Object get(String name) {
-        Object value = (bindings != null) ? bindings.get(name) : null;
-        if (value != null) {
-            return value;
+    public Object get(Token name) {
+        if (values.containsKey(name.lexeme)) {
+            return values.get(name.lexeme);
         }
-        if (parent != null) {
-            return parent.get(name);
-        }
-        throw new RuntimeError(null, "Undefined variable '" + name + "'");
+        if (enclosing != null) return enclosing.get(name);
+        throw new RuntimeError(name, "Undefined variable '" + name.lexeme + "'.");
     }
 
-    public void assign(String name, Object value) {
-        if (bindings != null && bindings.contains(name)) {
-            bindings.put(name, value);
+    public void assign(Token name, Object value) {
+        if (values.containsKey(name.lexeme)) {
+            values.put(name.lexeme, value);
             return;
         }
-        if (parent != null) {
-            parent.assign(name, value);
+        if (enclosing != null) {
+            enclosing.assign(name, value);
             return;
         }
-        throw new RuntimeError(null, "Undefined variable '" + name + "'");
+        throw new RuntimeError(name, "Undefined variable '" + name.lexeme + "'.");
     }
 }
