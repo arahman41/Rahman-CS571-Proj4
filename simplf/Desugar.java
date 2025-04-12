@@ -3,19 +3,30 @@ package simplf;
 import java.util.List;
 
 public class Desugar {
+    public List<Stmt> desugar(List<Stmt> statements) {
+        // Implement desugaring for all statements (e.g., For → While)
+        return statements.stream()
+                .map(this::desugarStmt)
+                .toList();
+    }
+
+    private Stmt desugarStmt(Stmt stmt) {
+        if (stmt instanceof Stmt.For) {
+            return visitForStmt((Stmt.For) stmt);
+        }
+        return stmt; // No desugaring needed
+    }
+
     public Stmt visitForStmt(Stmt.For stmt) {
-        Stmt init = stmt.initializer != null ? stmt.initializer : new Stmt.Expression(null);
-        Expr cond = stmt.condition != null ? stmt.condition : new Expr.Literal(true);
-        Stmt update = stmt.update != null ? new Stmt.Expression(stmt.update) : new Stmt.Expression(null);
-        Stmt whileBody = new Stmt.Block(
-                stmt.body instanceof Stmt.Block
-                        ? ((Stmt.Block) stmt.body).statements
-                        : List.of(stmt.body)
-        );
-        if (update instanceof Stmt.Expression && ((Stmt.Expression) update).expression != null) {
-            whileBody = new Stmt.Block(
-                    List.of(stmt.body, update)
-            );
+        // Convert Expr to Stmt.Expression for init/incr
+        Stmt init = stmt.init != null ? new Stmt.Expression(stmt.init) : new Stmt.Expression(null);
+        Expr cond = stmt.cond != null ? stmt.cond : new Expr.Literal(true);
+        Stmt incr = stmt.incr != null ? new Stmt.Expression(stmt.incr) : null;
+
+        // Build while loop
+        Stmt whileBody = stmt.body;
+        if (incr != null) {
+            whileBody = new Stmt.Block(List.of(stmt.body, incr));
         }
         Stmt whileStmt = new Stmt.While(cond, whileBody);
         return new Stmt.Block(List.of(init, whileStmt));
