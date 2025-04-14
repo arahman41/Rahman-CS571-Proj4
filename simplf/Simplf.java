@@ -1,4 +1,4 @@
-package simplf;
+package simplf; 
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -66,8 +66,8 @@ public class Simplf {
         //System.out.println("Original program:");
         //print_program(statements);
 
-        List<Stmt> desugared_statements =
-                (new Desugar()).desugar(statements);
+        List<Stmt> desugared_statements = 
+            (new Desugar()).desugar(statements);
 
         //System.out.println("Desugared program:");
         //print_program(desugared_statements);

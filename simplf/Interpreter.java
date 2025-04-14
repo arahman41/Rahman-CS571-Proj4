@@ -1,42 +1,48 @@
-package simplf;
+package simplf; 
 
 import java.util.List;
 
-public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
-    final Environment globals = new Environment();
+import simplf.Stmt.For;
+
+class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Object> {
+    public Environment globals = new Environment();
     private Environment environment = globals;
 
-    public void interpret(List<Stmt> statements) {
+    Interpreter() {
+
+    }
+
+    public void interpret(List<Stmt> stmts) {
         try {
-            for (Stmt statement : statements) {
-                execute(statement);
+            for (Stmt stmt : stmts) {
+                execute(stmt);
             }
         } catch (RuntimeError error) {
             Simplf.runtimeError(error);
         }
     }
 
-    private void execute(Stmt stmt) {
-        stmt.accept(this);
+    // @Override
+    // public Object visitExprStmt(Stmt.Expression stmt) {
+    //     throw new UnsupportedOperationException("TODO: implement statements");
+    // }
+
+    @Override
+    public Object visitExprStmt(Stmt.Expression stmt) {
+        return evaluate(stmt.expr);  
     }
 
     @Override
-    public Void visitExpressionStmt(Stmt.Expression stmt) {
-        evaluate(stmt.expr);
+    public Object visitPrintStmt(Stmt.Print stmt) {
+        Object val = evaluate(stmt.expr);
+        System.out.println(stringify(val));
         return null;
     }
 
-    @Override
-    public Void visitPrintStmt(Stmt.Print stmt) {
-        Object value = evaluate(stmt.expr);
-        System.out.println(stringify(value));
-        return null;
-    }
-
-    @Override
-    public Void visitExprStmt(Stmt.Expression stmt) {
-        return null;
-    }
+    // @Override
+    // public Void visitVarStmt(Stmt.Var stmt) {
+    //     throw new UnsupportedOperationException("TODO: implement statements");
+    // }
 
     @Override
     public Void visitVarStmt(Stmt.Var stmt) {
@@ -44,13 +50,98 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         if (stmt.initializer != null) {
             value = evaluate(stmt.initializer);
         }
-        environment.define(stmt.name.lexeme, value);
+
+        environment = environment.define(stmt.name, stmt.name.lexeme, value);
         return null;
     }
 
+
+    // @Override
+    // public Object visitBlockStmt(Stmt.Block stmt) {
+    //     throw new UnsupportedOperationException("TODO: implement statements");
+    // }
+
     @Override
-    public Object visitVariableExpr(Expr.Variable expr) {
-        return environment.get(expr.name);
+    public Object visitBlockStmt(Stmt.Block stmt) {
+        Environment previous = environment;
+        environment = new Environment(previous);
+
+        try {
+            for (Stmt s : stmt.statements) {
+                execute(s);
+            }
+        } finally {
+            environment = previous;
+        }
+        return null;
+    }
+
+
+
+    // @Override
+    // public Object visitIfStmt(Stmt.If stmt) {
+    //     throw new UnsupportedOperationException("TODO: implement statements");
+    // }
+
+
+    @Override
+    public Object visitIfStmt(Stmt.If stmt) {
+        if (isTruthy(evaluate(stmt.cond))) {
+            execute(stmt.thenBranch);
+        } else if (stmt.elseBranch != null) {
+            execute(stmt.elseBranch);
+        }
+        return null;
+    }
+
+    // @Override
+    // public Object visitWhileStmt(Stmt.While stmt) {
+    //     throw new UnsupportedOperationException("TODO: implement statements");
+    // }
+
+    @Override
+    public Object visitWhileStmt(Stmt.While stmt) {
+        while (isTruthy(evaluate(stmt.cond))) {
+            execute(stmt.body);
+        }
+        return null;
+    }
+
+
+    @Override
+    public Object visitForStmt(For stmt) {
+        throw new UnsupportedOperationException("For loops are not interpreted.");
+    }
+
+    // @Override
+    // public Object visitFunctionStmt(Stmt.Function stmt) {
+    //     throw new UnsupportedOperationException("TODO: implement statements");
+    // }
+
+    @Override
+    public Object visitFunctionStmt(Stmt.Function stmt) {
+        SimplfFunction function = new SimplfFunction(stmt, null);
+
+        environment = environment.define(stmt.name, stmt.name.lexeme, function);
+
+        function.setClosure(environment);
+
+        return null;
+    }
+
+
+
+    @Override
+    public Object visitLogicalExpr(Expr.Logical expr) {
+        Object left = evaluate(expr.left);
+        if (expr.op.type == TokenType.OR) {
+            if (isTruthy(left))
+                return left;
+        } else {
+            if (!isTruthy(left))
+                return left;
+        }
+        return evaluate(expr.right);
     }
 
     @Override
@@ -59,42 +150,48 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         Object right = evaluate(expr.right);
 
         switch (expr.op.type) {
-            // Arithmetic
             case PLUS:
                 if (left instanceof String || right instanceof String) {
                     return stringify(left) + stringify(right);
                 }
-                checkNumberOperands(expr.op, left, right);
-                return (double)left + (double)right;
+                if (left instanceof Double && right instanceof Double) {
+                    return (double) left + (double) right;
+                }
+                throw new RuntimeError(expr.op, "Addition operation not supported for operands.");
             case MINUS:
-                checkNumberOperands(expr.op, left, right);
-                return (double)left - (double)right;
+                checkNumbers(expr.op, left, right);
+                return (double) left - (double) right;
             case STAR:
-                checkNumberOperands(expr.op, left, right);
-                return (double)left * (double)right;
+                checkNumbers(expr.op, left, right);
+                return (double) left * (double) right;
             case SLASH:
-                checkNumberOperands(expr.op, left, right);
-                return (double)left / (double)right;
-
-            // Comparisons
+                checkNumbers(expr.op, left, right);
+                if ((double) right == 0) {
+                    throw new RuntimeError(expr.op, "Cannot divide by zero.");
+                }
+                return (double) left / (double) right;
             case GREATER:
-                checkNumberOperands(expr.op, left, right);
-                return (double)left > (double)right;
+                checkNumbers(expr.op, left, right);
+                return (double) left > (double) right;
             case GREATER_EQUAL:
-                checkNumberOperands(expr.op, left, right);
-                return (double)left >= (double)right;
+                checkNumbers(expr.op, left, right);
+                return (double) left >= (double) right;
             case LESS:
-                checkNumberOperands(expr.op, left, right);
-                return (double)left < (double)right;
+                checkNumbers(expr.op, left, right);
+                return (double) left < (double) right;
             case LESS_EQUAL:
-                checkNumberOperands(expr.op, left, right);
-                return (double)left <= (double)right;
-            case EQUAL_EQUAL: return isEqual(left, right);
-            case BANG_EQUAL: return !isEqual(left, right);
-
+                checkNumbers(expr.op, left, right);
+                return (double) left <= (double) right;
+            case EQUAL_EQUAL:
+                return isEqual(left, right);
+            case BANG_EQUAL:
+                return !isEqual(left, right);
+            case COMMA:
+                return right;
             default:
-                throw new RuntimeError(expr.op, "Invalid binary operator.");
+                break;
         }
+        return null;
     }
 
     @Override
@@ -102,13 +199,14 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         Object right = evaluate(expr.right);
         switch (expr.op.type) {
             case MINUS:
-                checkNumberOperand(expr.op, right);
-                return -(double)right;
+                checkNumber(expr.op, right);
+                return -(double) right;
             case BANG:
                 return !isTruthy(right);
             default:
-                throw new RuntimeError(expr.op, "Invalid unary operator.");
+                break;
         }
+        return null;
     }
 
     @Override
@@ -121,10 +219,49 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         return evaluate(expr.expression);
     }
 
+    // @Override
+    // public Object visitVarExpr(Expr.Variable expr) {
+    //     throw new UnsupportedOperationException("TODO: implement variable references");
+    // }
+    
     @Override
     public Object visitVarExpr(Expr.Variable expr) {
-        return null;
+        return environment.get(expr.name);
     }
+
+
+
+    // @Override
+    // public Object visitCallExpr(Expr.Call expr) {
+    //     throw new UnsupportedOperationException("TODO: implement function calls");
+    // }
+
+    @Override
+    public Object visitCallExpr(Expr.Call expr) {
+        Object callee = evaluate(expr.callee);
+
+        if (!(callee instanceof SimplfCallable)) {
+            throw new RuntimeError(expr.paren, "Can only call functions.");
+        }
+
+        List<Object> arguments = new java.util.ArrayList<>();
+        for (Expr argument : expr.args) {
+            arguments.add(evaluate(argument));
+        }
+
+        SimplfCallable function = (SimplfCallable) callee;
+        return function.call(this, arguments);
+    }
+
+
+    private Object evaluate(Expr expr) {
+        return expr.accept(this);
+    }
+
+    // @Override
+    // public Object visitAssignExpr(Expr.Assign expr) {
+    //     throw new UnsupportedOperationException("TODO: implement assignments");
+    // }
 
     @Override
     public Object visitAssignExpr(Expr.Assign expr) {
@@ -134,129 +271,79 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     @Override
-    public Object visitLogicalExpr(Expr.Logical expr) {
-        Object left = evaluate(expr.left);
-        if (expr.op.type == TokenType.OR) {
-            if (isTruthy(left)) return left;
-        } else {
-            if (!isTruthy(left)) return left;
-        }
-        return evaluate(expr.right);
-    }
-
-    @Override
     public Object visitConditionalExpr(Expr.Conditional expr) {
-        return null;
-    }
-
-    @Override
-    public Void visitBlockStmt(Stmt.Block stmt) {
-        executeBlock(stmt.statements, new Environment(environment));
-        return null;
-    }
-
-    public void executeBlock(List<Stmt> statements, Environment environment) {
-        Environment previous = this.environment;
-        try {
-            this.environment = environment;
-            for (Stmt statement : statements) {
-                execute(statement);
-            }
-        } finally {
-            this.environment = previous;
+        if (isTruthy(evaluate(expr.cond))) {
+            return evaluate(expr.thenBranch);
+        } else {
+            return evaluate(expr.elseBranch);
         }
     }
 
-    @Override
-    public Void visitIfStmt(Stmt.If stmt) {
-        if (isTruthy(evaluate(stmt.cond))) {
-            execute(stmt.thenBranch);
-        } else if (stmt.elseBranch != null) {
-            execute(stmt.elseBranch);
-        }
-        return null;
-    }
-
-    @Override
-    public Void visitWhileStmt(Stmt.While stmt) {
-        while (isTruthy(evaluate(stmt.cond))) {
-            execute(stmt.body);
-        }
-        return null;
-    }
-
-    @Override
-    public Void visitForStmt(Stmt.For stmt) {
-        return null;
-    }
-
-    @Override
-    public Void visitFunctionStmt(Stmt.Function stmt) {
-        SimplfFunction function = new SimplfFunction(stmt, environment);
-        environment.define(stmt.name.lexeme, function);
-        return null;
-    }
-
-    @Override
-    public Object visitCallExpr(Expr.Call expr) {
-        Object callee = evaluate(expr.callee);
-        List<Object> arguments = new java.util.ArrayList<>();
-        for (Expr argument : expr.args) {
-            arguments.add(evaluate(argument));
-        }
-
-        if (!(callee instanceof SimplfCallable)) {
-            throw new RuntimeError(expr.paren, "Can only call functions and classes.");
-        }
-
-        SimplfCallable function = (SimplfCallable) callee;
-        if (arguments.size() != function.arity()) {
-            throw new RuntimeError(expr.paren, "Expected " +
-                    function.arity() + " arguments but got " +
-                    arguments.size() + ".");
-        }
-        return function.call(this, arguments);
-    }
-
-    private Object evaluate(Expr expr) {
-        return expr.accept(this);
+    private Object execute(Stmt stmt) {
+        return stmt.accept(this);
     }
 
     private boolean isTruthy(Object object) {
-        if (object == null) return false;
-        if (object instanceof Boolean) return (boolean) object;
-        if (object instanceof Double) {
-            double val = (double) object;
-            return !Double.isNaN(val) && val != 0.0;
+        if (object == null) {
+            return false;
+        }
+        if (object instanceof Boolean) {
+            return (boolean) object;
         }
         return true;
     }
 
     private boolean isEqual(Object a, Object b) {
-        if (a == null && b == null) return true;
-        if (a == null) return false;
+        if (a == null)
+            return b == null;
         return a.equals(b);
     }
 
+    private void checkNumber(Token op, Object object) {
+        if (object instanceof Double)
+            return;
+        throw new RuntimeError(op, "Operand must be a number");
+    }
+
+    private void checkNumbers(Token op, Object a, Object b) {
+        if (a instanceof Double && b instanceof Double)
+            return;
+        throw new RuntimeError(op, "Operand must be numbers");
+    }
+
     private String stringify(Object object) {
-        if (object == null) return "nil";
+        if (object == null)
+            return "nil";
         if (object instanceof Double) {
-            String text = object.toString();
-            if (text.endsWith(".0")) {
-                text = text.substring(0, text.length() - 2);
+            String num = object.toString();
+            if (num.endsWith(".0")) {
+                num = num.substring(0, num.length() - 2);
             }
-            return text;
+            return num;
         }
         return object.toString();
     }
 
-    private void checkNumberOperand(Token op, Object operand) {
-        if (operand instanceof Double) return;
-        throw new RuntimeError(op, "Operand must be a number.");
+
+
+
+
+
+
+
+
+
+    public Environment getEnvironment() {
+        return this.environment;
     }
 
-    private void checkNumberOperands(Token op, Object left, Object right) {
-        if (left instanceof Double && right instanceof Double) return;
-        throw new RuntimeError(op, "Operands must be numbers.");
+    public void setEnvironment(Environment env) {
+        this.environment = env;
     }
-}
+
+    public Object runInCurrentEnv(Stmt stmt) {
+        return execute(stmt);
+    }
+
+
+} 

@@ -1,41 +1,52 @@
 package simplf;
 
-import java.util.HashMap;
-import java.util.Map;
+class Environment {
+    private final AssocList assocList;
+    private final Environment enclosing;
 
-public class Environment {
-    final Map<String, Object> values = new HashMap<>();
-    final Environment enclosing;
-
-    public Environment() {
+    Environment() {
+        this.assocList = null;
         this.enclosing = null;
     }
 
-    public Environment(Environment enclosing) {
+    Environment(Environment enclosing) {
+        this.assocList = null;
         this.enclosing = enclosing;
     }
 
-    public void define(String name, Object value) {
-        values.put(name, value);
+    Environment(AssocList assocList, Environment enclosing) {
+        this.assocList = assocList;
+        this.enclosing = enclosing;
     }
 
-    public Object get(Token name) {
-        if (values.containsKey(name.lexeme)) {
-            return values.get(name.lexeme);
-        }
-        if (enclosing != null) return enclosing.get(name);
-        throw new RuntimeError(name, "Undefined variable '" + name.lexeme + "'.");
+    Environment define(Token varToken, String name, Object value) {
+        AssocList newList = new AssocList(name, value, this.assocList);
+        return new Environment(newList, this.enclosing);
     }
 
-    public void assign(Token name, Object value) {
-        if (values.containsKey(name.lexeme)) {
-            values.put(name.lexeme, value);
-            return;
+    void assign(Token name, Object value) {
+        for (AssocList cursor = assocList; cursor != null; cursor = cursor.next) {
+            if (cursor.name.equals(name.lexeme)) {
+                cursor.value = value;
+                return;
+            }
         }
         if (enclosing != null) {
             enclosing.assign(name, value);
-            return;
+        } else {
+            throw new RuntimeError(name, "Undefined variable '" + name.lexeme + "'");
         }
-        throw new RuntimeError(name, "Undefined variable '" + name.lexeme + "'.");
+    }
+
+    Object get(Token name) {
+        for (AssocList cursor = assocList; cursor != null; cursor = cursor.next) {
+            if (cursor.name.equals(name.lexeme)) {
+                return cursor.value;
+            }
+        }
+        if (enclosing != null) {
+            return enclosing.get(name);
+        }
+        throw new RuntimeError(name, "Undefined variable '" + name.lexeme + "'");
     }
 }

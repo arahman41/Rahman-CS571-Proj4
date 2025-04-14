@@ -2,37 +2,45 @@ package simplf;
 
 import java.util.List;
 
-public class SimplfFunction implements SimplfCallable {
+class SimplfFunction implements SimplfCallable {
     private final Stmt.Function declaration;
-    private final Environment closure;
+    private Environment closure;
 
-    public SimplfFunction(Stmt.Function declaration, Environment closure) {
+    SimplfFunction(Stmt.Function declaration, Environment closure) {
         this.declaration = declaration;
         this.closure = closure;
     }
 
-    @Override
-    public Object call(Interpreter interpreter, List<Object> arguments) {
-        Environment environment = new Environment(closure);
-        for (int i = 0; i < declaration.params.size(); i++) {
-            environment.define(declaration.params.get(i).lexeme, arguments.get(i));
-        }
-
-        try {
-            interpreter.executeBlock(declaration.body, environment);
-            return null;  // Default return for no explicit return
-        } catch (Return returnValue) {
-            return returnValue.value;  // Handle explicit returns
-        }
+    public void setClosure(Environment env) {
+        this.closure = env;
     }
 
     @Override
-    public int arity() {
-        return declaration.params.size();
+    public Object call(Interpreter interpreter, List<Object> args) {
+        Environment localEnv = new Environment(closure);
+
+        for (int i = 0; i < declaration.params.size(); i++) {
+            Token param = declaration.params.get(i);
+            localEnv = localEnv.define(param, param.lexeme, args.get(i));
+        }
+
+        Environment previous = interpreter.getEnvironment();
+        interpreter.setEnvironment(localEnv);
+        Object result = null;
+
+        try {
+            for (Stmt stmt : declaration.body) {
+                result = interpreter.runInCurrentEnv(stmt);
+            }
+        } finally {
+            interpreter.setEnvironment(previous);
+        }
+
+        return result;
     }
 
     @Override
     public String toString() {
-        return "<fn " + declaration.name.lexeme + "/" + arity() + ">";
+        return "<fn " + declaration.name.lexeme + ">";
     }
 }
